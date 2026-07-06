@@ -11,6 +11,7 @@
 #include <QStringList>
 
 Board::Board()
+    : m_currentTurn(Color::White)
 {
 }
 
@@ -29,6 +30,7 @@ void Board::clearBoard()
 void Board::setupNewGame()
 {
     clearBoard();
+    m_currentTurn = Color::White;
 
     QString backRank[8] = { "rook", "knight", "bishop", "queen",
                            "king", "bishop", "knight", "rook" };
@@ -79,6 +81,97 @@ bool Board::applyMove(const Move &move)
         return false;
 
     moveFigure(figure, move.toCol, move.toRow);
+    return true;
+}
+
+Color Board::getCurrentTurn() const
+{
+    return m_currentTurn;
+}
+
+void Board::switchTurn()
+{
+    m_currentTurn = (m_currentTurn == Color::White) ? Color::Black : Color::White;
+}
+
+void Board::resetTurn()
+{
+    m_currentTurn = Color::White;
+}
+
+Figure* Board::findKing(Color color) const
+{
+    for (int i = 0; i < m_figures.size(); i++) {
+        if (m_figures[i]->getColor() == color && m_figures[i]->getTypeName() == "king")
+            return m_figures[i];
+    }
+    return nullptr;
+}
+
+bool Board::isKingInCheck(Color color) const
+{
+    Figure *king = findKing(color);
+    if (king == nullptr)
+        return false;
+
+    int kingCol = king->getCol();
+    int kingRow = king->getRow();
+    Color enemyColor = (color == Color::White) ? Color::Black : Color::White;
+
+    for (int i = 0; i < m_figures.size(); i++) {
+        Figure *figure = m_figures[i];
+        if (figure->getColor() != enemyColor)
+            continue;
+
+        QVector<QPoint> moves = figure->possibleMoves(*this);
+        for (int j = 0; j < moves.size(); j++) {
+            if (moves[j].x() == kingCol && moves[j].y() == kingRow)
+                return true;
+        }
+    }
+
+    return false;
+}
+
+bool Board::isCheckmate(Color color)
+{
+    if (!isKingInCheck(color))
+        return false;
+
+    QVector<Figure*> figuresCopy = m_figures;
+
+    for (int i = 0; i < figuresCopy.size(); i++) {
+        Figure *figure = figuresCopy[i];
+        if (figure->getColor() != color)
+            continue;
+
+        int originalCol = figure->getCol();
+        int originalRow = figure->getRow();
+        QVector<QPoint> moves = figure->possibleMoves(*this);
+
+        for (int j = 0; j < moves.size(); j++) {
+            int toCol = moves[j].x();
+            int toRow = moves[j].y();
+
+            Figure *captured = figureAt(toCol, toRow);
+            if (captured == figure)
+                captured = nullptr;
+
+            if (captured != nullptr)
+                m_figures.removeOne(captured);
+
+            figure->setPosition(toCol, toRow);
+            bool stillInCheck = isKingInCheck(color);
+
+            figure->setPosition(originalCol, originalRow);
+            if (captured != nullptr)
+                m_figures.append(captured);
+
+            if (!stillInCheck)
+                return false;
+        }
+    }
+
     return true;
 }
 
@@ -171,6 +264,7 @@ bool Board::loadFromFile(const QString &filePath)
 
     clearBoard();
     m_figures = newFigures;
+    m_currentTurn = Color::White;
     return true;
 }
 

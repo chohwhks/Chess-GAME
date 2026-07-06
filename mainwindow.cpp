@@ -6,6 +6,7 @@
 #include <QPushButton>
 #include <QFileDialog>
 #include <QMessageBox>
+#include <QStatusBar>
 
 MainWindow::MainWindow(QWidget *parent)
     : QMainWindow(parent)
@@ -21,13 +22,14 @@ void MainWindow::setupUi()
 
     m_boardWidget = new BoardWidget(central);
     mainLayout->addWidget(m_boardWidget);
+    connect(m_boardWidget, &BoardWidget::statusMessage, this, &MainWindow::onStatusMessage);
 
     QVBoxLayout *sideLayout = new QVBoxLayout();
 
     QPushButton *btnNewGame = new QPushButton("Начать новую партию", central);
-    QPushButton *btnLoadFile = new QPushButton("Прочитать из файла", central);
+    QPushButton *btnLoadFile = new QPushButton("Прочитать расстановку", central);
     QPushButton *btnSaveFile = new QPushButton("Сохранить в файл", central);
-    QPushButton *btnLoadMoves = new QPushButton("Прочитать ходы из файла", central);
+    QPushButton *btnLoadMoves = new QPushButton("Прочитать партию ", central);
 
     connect(btnNewGame, &QPushButton::clicked, this, &MainWindow::onNewGameClicked);
     connect(btnLoadFile, &QPushButton::clicked, this, &MainWindow::onLoadFileClicked);
@@ -42,6 +44,7 @@ void MainWindow::setupUi()
 
     mainLayout->addLayout(sideLayout);
     setCentralWidget(central);
+    statusBar()->showMessage("Ход белых");
 }
 
 void MainWindow::onNewGameClicked()
@@ -73,11 +76,21 @@ void MainWindow::onSaveFileClicked()
 
 void MainWindow::onLoadMovesClicked()
 {
-    QString filePath = QFileDialog::getOpenFileName(this, "Выберите файл с ходами",
-                                                    QString(), "Текстовые файлы (*.txt)");
-    if (filePath.isEmpty())
+    QString positionPath = QFileDialog::getOpenFileName(this, "Выберите файл расстановки",
+                                                        QString(), "Текстовые файлы (*.txt)");
+    if (positionPath.isEmpty())
         return;
 
-    if (!m_boardWidget->startMovesPlayback(filePath))
-        QMessageBox::warning(this, "Ошибка", "Не удалось прочитать файл ходов");
+    QString movesPath = QFileDialog::getOpenFileName(this, "Выберите файл партии (ходов)",
+                                                     QString(), "Текстовые файлы (*.txt)");
+    if (movesPath.isEmpty())
+        return;
+
+    if (!m_boardWidget->startPositionAndMovesPlayback(positionPath, movesPath))
+        QMessageBox::warning(this, "Ошибка", "Не удалось прочитать файлы расстановки и партии");
+}
+
+void MainWindow::onStatusMessage(const QString &message)
+{
+    statusBar()->showMessage(message);
 }

@@ -27,6 +27,13 @@ public:
     void moveFigure(Figure *figure, int col, int row);
     bool applyMove(const Move &move);
 
+    Color getCurrentTurn() const;
+    void switchTurn();
+    void resetTurn();
+
+    bool isKingInCheck(Color color) const;
+    bool isCheckmate(Color color);
+
     bool saveToFile(const QString &filePath) const;
     bool loadFromFile(const QString &filePath);
 
@@ -35,10 +42,12 @@ public:
 
 private:
     QVector<Figure*> m_figures;
+    Color m_currentTurn;
 
     Figure* createFigure(const QString &typeName, Color color, int col, int row) const;
     QString colorToString(Color color) const;
     Color stringToColor(const QString &text) const;
+    Figure* findKing(Color color) const;
 };
 
 #endif // BOARD_H

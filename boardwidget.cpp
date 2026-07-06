@@ -6,7 +6,7 @@
 #include <QBrush>
 
 BoardWidget::BoardWidget(QWidget *parent)
-    : QGraphicsView(parent), m_selectedFigure(nullptr), m_currentMoveIndex(0)
+    : QGraphicsView(parent), m_selectedFigure(nullptr), m_currentMoveIndex(0), m_gameOver(false)
 {
     m_scene = new QGraphicsScene(this);
     setScene(m_scene);
@@ -32,9 +32,11 @@ void BoardWidget::newGame()
     m_moveTimer->stop();
     m_pendingMoves.clear();
     m_currentMoveIndex = 0;
+    m_gameOver = false;
 
     m_board->setupNewGame();
     redraw();
+    emit statusMessage("Ход белых");
 }
 
 bool BoardWidget::loadFromFile(const QString &filePath)
@@ -42,10 +44,13 @@ bool BoardWidget::loadFromFile(const QString &filePath)
     m_moveTimer->stop();
     m_pendingMoves.clear();
     m_currentMoveIndex = 0;
+    m_gameOver = false;
 
     bool ok = m_board->loadFromFile(filePath);
-    if (ok)
+    if (ok) {
         redraw();
+        emit statusMessage("Ход белых");
+    }
     return ok;
 }
 
@@ -65,6 +70,28 @@ bool BoardWidget::startMovesPlayback(const QString &filePath)
     m_board->setupNewGame();
     m_pendingMoves = moves;
     m_currentMoveIndex = 0;
+    m_gameOver = false;
+    redraw();
+
+    m_moveTimer->start(MOVE_INTERVAL_MS);
+    return true;
+}
+
+bool BoardWidget::startPositionAndMovesPlayback(const QString &positionPath, const QString &movesPath)
+{
+    if (!m_board->loadFromFile(positionPath))
+        return false;
+
+    bool ok = false;
+    QVector<Move> moves = Board::readMovesFromFile(movesPath, ok);
+    if (!ok)
+        return false;
+
+    m_moveTimer->stop();
+    m_board->resetTurn();
+    m_pendingMoves = moves;
+    m_currentMoveIndex = 0;
+    m_gameOver = false;
     redraw();
 
     m_moveTimer->start(MOVE_INTERVAL_MS);
@@ -73,17 +100,41 @@ bool BoardWidget::startMovesPlayback(const QString &filePath)
 
 void BoardWidget::onMoveTimerTick()
 {
-    if (m_currentMoveIndex >= m_pendingMoves.size()) {
+    if (m_gameOver || m_currentMoveIndex >= m_pendingMoves.size()) {
         m_moveTimer->stop();
         return;
     }
 
     m_board->applyMove(m_pendingMoves[m_currentMoveIndex]);
+    m_board->switchTurn();
     m_currentMoveIndex++;
     redraw();
+    checkGameStatus();
 
     if (m_currentMoveIndex >= m_pendingMoves.size())
         m_moveTimer->stop();
+}
+
+void BoardWidget::checkGameStatus()
+{
+    Color turn = m_board->getCurrentTurn();
+
+    if (m_board->isKingInCheck(turn)) {
+        if (m_board->isCheckmate(turn)) {
+            m_gameOver = true;
+            m_moveTimer->stop();
+            QString winner = (turn == Color::White) ? "Чёрные" : "Белые";
+            emit statusMessage(winner + " выигрывают, мат!");
+            return;
+        }
+
+        QString colorName = (turn == Color::White) ? "белым" : "чёрным";
+        emit statusMessage("Шах " + colorName + "!");
+        return;
+    }
+
+    QString colorName = (turn == Color::White) ? "белых" : "чёрных";
+    emit statusMessage("Ход " + colorName);
 }
 
 QPointF BoardWidget::cellTopLeft(int col, int row) const
@@ -193,6 +244,9 @@ void BoardWidget::redraw()
 
 void BoardWidget::mousePressEvent(QMouseEvent *event)
 {
+    if (m_gameOver)
+        return;
+
     QPointF scenePos = mapToScene(event->pos());
     int col, row;
 
@@ -206,7 +260,9 @@ void BoardWidget::mousePressEvent(QMouseEvent *event)
         QVector<QPoint> moves = m_selectedFigure->possibleMoves(*m_board);
         if (moves.contains(QPoint(col, row))) {
             m_board->moveFigure(m_selectedFigure, col, row);
+            m_board->switchTurn();
             redraw();
+            checkGameStatus();
             return;
         }
     }
@@ -215,6 +271,11 @@ void BoardWidget::mousePressEvent(QMouseEvent *event)
     clearHighlights();
 
     if (clickedFigure == nullptr || clickedFigure == m_selectedFigure) {
+        m_selectedFigure = nullptr;
+        return;
+    }
+
+    if (clickedFigure->getColor() != m_board->getCurrentTurn()) {
         m_selectedFigure = nullptr;
         return;
     }

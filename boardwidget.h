@@ -20,6 +20,10 @@ public:
     bool loadFromFile(const QString &filePath);
     bool saveToFile(const QString &filePath) const;
     bool startMovesPlayback(const QString &filePath);
+    bool startPositionAndMovesPlayback(const QString &positionPath, const QString &movesPath);
+
+signals:
+    void statusMessage(const QString &message);
 
 protected:
     void mousePressEvent(QMouseEvent *event) override;
@@ -40,6 +44,7 @@ private:
     QTimer *m_moveTimer;
     QVector<Move> m_pendingMoves;
     int m_currentMoveIndex;
+    bool m_gameOver;
 
     void redraw();
     void drawBoard();
@@ -47,6 +52,7 @@ private:
     void drawFigures();
     void clearHighlights();
     void highlightMoves(const QVector<QPoint> &moves);
+    void checkGameStatus();
     bool sceneToCell(const QPointF &scenePos, int &col, int &row) const;
     QPointF cellTopLeft(int col, int row) const;
 };

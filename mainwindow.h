@@ -16,6 +16,7 @@ private slots:
     void onLoadFileClicked();
     void onSaveFileClicked();
     void onLoadMovesClicked();
+    void onStatusMessage(const QString &message);
 
 private:
     BoardWidget *m_boardWidget;
